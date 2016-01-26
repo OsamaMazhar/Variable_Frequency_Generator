@@ -1,8 +1,7 @@
 /*
- * Title: Acid Patch Detection Robot
+ * Title: Variable Frequency Generator
  * Author: Osama Mazhar
  * Date: 21st Jan 2012
- * Universiti Teknologi Malaysia
  * Email: osamazhar@yahoo.com
  */
  
