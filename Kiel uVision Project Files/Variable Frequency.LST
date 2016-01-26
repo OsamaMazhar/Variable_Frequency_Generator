@@ -1,0 +1,337 @@
+C51 COMPILER V9.01   VARIABLE_FREQUENCY                                                    01/26/2016 16:13:41 PAGE 1   
+
+
+C51 COMPILER V9.01, COMPILATION OF MODULE VARIABLE_FREQUENCY
+OBJECT MODULE PLACED IN Variable Frequency.OBJ
+COMPILER INVOKED BY: C:\Keil\C51\BIN\C51.EXE Variable Frequency.c BROWSE DEBUG OBJECTEXTEND
+
+line level    source
+
+   1          #include <reg51.h>
+   2          
+   3          #define KEYPAD P1                                                                                               
+   4          #define ldata P0                                                                                        //sfr ldata = 0x0B0; for P3
+   5          
+   6          sbit rs = P3^5;
+   7          sbit rw = P3^6;
+   8          sbit en = P3^7;
+   9          sbit busy = P0^7;
+  10          sbit Clock = P3^0;
+  11          sbit Status = P3^1;
+  12          
+  13          
+  14          void lcdready();
+  15          void lcdcmd(unsigned char);
+  16          void lcddata(unsigned char);
+  17          void MSDelay(unsigned int);
+  18          unsigned char KeypadRead();
+  19          unsigned int GetInput();
+  20          void TimerH(unsigned char, unsigned char);
+  21          void TimerL(unsigned char, unsigned char);
+  22          
+  23          unsigned char code keypad[4][4] = {'7','8','9','/','4','5','6','X','1','2','3','-','.','0','=','+'};
+  24          
+  25          
+  26          
+  27          void main()
+  28                  {
+  29   1               float Frequency, Percent, LowTime, HighTime, TotalDelayMilli, TotalDelayMicro;
+  30   1               unsigned int ConvHH, ConvLH, ValueH, ConvHL, ConvLL, ValueL;
+  31   1               unsigned char x, HighH, LowH, HighL, LowL;
+  32   1               unsigned char Freq[17] = "Freq:         Hz", DutyC[17] = "Duty Cycle:    %";
+  33   1               unsigned char colloc;
+  34   1      
+  35   1               Status = 0;
+  36   1               KEYPAD = 0xF0;                                                                                 // make higher bits of keypad port that is column bits input and low row bits o
+             -utputs
+  37   1               Clock = 0;
+  38   1               lcdcmd(0x38);                                                                                  //2 lines and 5X7 matrix
+  39   1               lcdcmd(0x0C);                                                                                  //Display ON, Cursor Blinking = 0x0E But this command is Display ON, Cursor OFF
+  40   1               lcdcmd(0x01);                                                                                  //Clear Display Screen
+  41   1               lcdcmd(0x80);                                                                                  //Force Cursor to the beginning of the First Line
+  42   1               lcdcmd(0x06);
+  43   1               
+  44   1      main:lcdcmd(0x01);
+  45   1               for(x = 0; x<16; x++)
+  46   1                      lcddata(Freq[x]);
+  47   1               lcdcmd(0xC0);
+  48   1               for(x = 0; x<16; x++)
+  49   1                      lcddata(DutyC[x]);
+  50   1               lcdcmd(0x80);
+  51   1               for(x=0; x<6; x++)
+  52   1                      lcdcmd(0x16);
+  53   1               lcdcmd(0x0E);
+  54   1               Frequency = GetInput();
+C51 COMPILER V9.01   VARIABLE_FREQUENCY                                                    01/26/2016 16:13:41 PAGE 2   
+
+  55   1               if(Frequency > 20000)
+  56   1                      goto main;
+  57   1               lcdcmd(0x0C);
+  58   1               lcdcmd(0xC0);
+  59   1               for(x = 0; x<12; x++)
+  60   1                      lcdcmd(0x16);
+  61   1               lcdcmd(0x0E);
+  62   1               Percent = GetInput();
+  63   1               lcdcmd(0x0C);
+  64   1               TotalDelayMilli = (1 / Frequency) * 1000;
+  65   1               TotalDelayMicro = (TotalDelayMilli * 1000) - 45;               //With correction of 45
+  66   1               HighTime = (TotalDelayMicro / 100) * Percent;
+  67   1               LowTime = TotalDelayMicro - HighTime;
+  68   1      
+  69   1               ValueH = 65536 - HighTime;                                                                      
+  70   1               ConvLH = ValueH & 0x00FF;                                                               // Zeroing the Higher 8 bits to have Lower 8 bits
+  71   1               LowH = ConvLH;                                                                                  // Storing in a 8 bit character
+  72   1               ConvHH = ValueH & 0xFF00;                                                               // Masking the Lower 8 bits to have Higher 8 bits
+  73   1               ConvHH = ConvHH >> 8;                                                                   // Shifting right 8 bits to hit to the Lower Part to save it to a 8-bit c
+             -haracter
+  74   1               HighH = ConvHH;                                                                                 // Storing in a 8 bit character
+  75   1               
+  76   1               ValueL = 65536 - LowTime;                                                                      
+  77   1               ConvLL = ValueL & 0x00FF;                                                               // Zeroing the Higher 8 bits to have Lower 8 bits
+  78   1               LowL = ConvLL;                                                                                  // Storing in a 8 bit character
+  79   1               ConvHL = ValueL & 0xFF00;                                                               // Masking the Lower 8 bits to have Higher 8 bits
+  80   1               ConvHL = ConvHL >> 8;                                                                   // Shifting right 8 bits to hit to the Lower Part to save it to a 8-bit c
+             -haracter
+  81   1               HighL = ConvHL;                                                                        
+  82   1               
+  83   1               Status = 1;
+  84   1               while(1)                                                                                               //2 MC
+  85   1                      {
+  86   2                       Clock = 1;                                                                                     //1 MC
+  87   2                       TimerH(HighH, LowH);
+  88   2                       Clock = 0;
+  89   2                       TimerL(HighL, LowL);
+  90   2                       colloc = KEYPAD;                                                                       //2 MC           
+  91   2                       colloc &= 0xF0;                                                                        //2 MC           
+  92   2                       if(colloc == 0xE0)                                                                     //4 MC
+  93   2                              {
+  94   3                               MSDelay(5);
+  95   3                               colloc = KEYPAD;                                                               //read the columns
+  96   3                               colloc &= 0xF0;                                                                //mask unused bits
+  97   3                               if(colloc == 0xE0)
+  98   3                                      {
+  99   4                                       Status = 0;
+ 100   4                                       goto main;      
+ 101   4                                      }
+ 102   3                              }                                                                                               
+ 103   2                      }
+ 104   1              }                                                                                                               //main braces
+ 105          
+ 106          unsigned int GetInput()
+ 107                  {
+ 108   1               unsigned char L, cnt, Key[5];
+ 109   1               unsigned int Entry = 0;
+ 110   1               cnt = 0;
+ 111   1               do
+ 112   1                      {
+ 113   2      Re:              Key[cnt] = KeypadRead();
+ 114   2                       L = Key[cnt];
+C51 COMPILER V9.01   VARIABLE_FREQUENCY                                                    01/26/2016 16:13:41 PAGE 3   
+
+ 115   2                       if(L == '+' | L == '-')
+ 116   2                              goto Re;
+ 117   2                       if(L == '=')
+ 118   2                              continue;
+ 119   2                       lcddata(Key[cnt]);
+ 120   2                       Key[cnt] = Key[cnt] - 48;
+ 121   2                       cnt++;
+ 122   2      
+ 123   2                      }
+ 124   1               while(L != '=' & cnt != 5);
+ 125   1               switch(cnt)
+ 126   1                      {
+ 127   2                       case(1):
+ 128   2                              {
+ 129   3                               Entry = Key[0];
+ 130   3                               break;
+ 131   3                              }
+ 132   2                       case(2):
+ 133   2                              {
+ 134   3                               Entry = (Key[0] * 10) + Key[1];
+ 135   3                               break;
+ 136   3                              }
+ 137   2                       case(3):
+ 138   2                              {
+ 139   3                               Entry = (Key[0] * 100) + (Key[1] * 10) + Key[2];
+ 140   3                               break;
+ 141   3                              }
+ 142   2                       case(4):
+ 143   2                              {
+ 144   3                               Entry = (Key[0] * 1000) + (Key[1] * 100) + (Key[2] * 10) + Key[3];
+ 145   3                               break;
+ 146   3                              }
+ 147   2                       case(5):
+ 148   2                              {
+ 149   3                               Entry = (Key[0] * 10000) + (Key[1] * 1000) + (Key[2] * 100) + (Key[3] * 10) + Key[4];
+ 150   3                               break;
+ 151   3                              }
+ 152   2                      }
+ 153   1               return Entry;
+ 154   1              }
+ 155          
+ 156          void MSDelay(unsigned int count) 
+ 157                  {// mSec Delay 11.0592 Mhz 
+ 158   1           unsigned int i;                            
+ 159   1           while(count)
+ 160   1                      {
+ 161   2               i = 122; 
+ 162   2                       while(i>0)
+ 163   2                              i--;
+ 164   2               count--;
+ 165   2              }
+ 166   1              }
+ 167          
+ 168          void lcdready()
+ 169                  {                                                                                                               
+ 170   1                      busy = 1;                                                                                       //make the busy pin an input
+ 171   1                      rs = 0;
+ 172   1                      rw = 1;
+ 173   1                      while(busy == 1)                                                                        //wait here for busy flag
+ 174   1                              {
+ 175   2                                      en = 0;                                                                         //strobe the enable pin
+ 176   2                                      MSDelay(1);
+C51 COMPILER V9.01   VARIABLE_FREQUENCY                                                    01/26/2016 16:13:41 PAGE 4   
+
+ 177   2                                      en = 1;
+ 178   2                              }
+ 179   1                      return;                                 
+ 180   1               }
+ 181                            
+ 182          void lcdcmd(unsigned char value)
+ 183                  {
+ 184   1                      lcdready();
+ 185   1                      ldata = value;
+ 186   1                      rs = 0;
+ 187   1                      rw = 0;
+ 188   1                      en = 1;
+ 189   1                      MSDelay(1);
+ 190   1                      en = 0;
+ 191   1                      return;
+ 192   1              }
+ 193          
+ 194          
+ 195          void lcddata(unsigned char value)
+ 196                  {
+ 197   1                      lcdready();
+ 198   1                      ldata = value;
+ 199   1                      rs = 1;
+ 200   1                      rw = 0;
+ 201   1                      en = 1;
+ 202   1                      MSDelay(1);
+ 203   1                      en = 0;
+ 204   1                      return;
+ 205   1              }
+ 206          
+ 207          unsigned char KeypadRead()
+ 208                  {
+ 209   1                      unsigned char colloc, rowloc;           
+ 210   1                      do
+ 211   1                         {                                                                                            
+ 212   2                         KEYPAD = 0xF0;                                                                       //ground all rows at once
+ 213   2                         colloc = KEYPAD;                                                                     //read the port for columns
+ 214   2                         colloc &= 0xF0;                                                                      //mask row bits
+ 215   2                         }
+ 216   1                      while(colloc != 0xF0);                                                          //check until all keys are released
+ 217   1                      
+ 218   1                      do
+ 219   1                         {
+ 220   2                               do
+ 221   2                                      {
+ 222   3                                      MSDelay(8);                                                             //call delay
+ 223   3                                      colloc = KEYPAD;                                                        //see if any key is pressed
+ 224   3                                      colloc &= 0xF0;                                                         //mask unsused bits
+ 225   3                                      }
+ 226   2                               while(colloc == 0xF0);                                                 //keep checking for keypress
+ 227   2      
+ 228   2                              MSDelay(8);                                                                             //call delay for debounce
+ 229   2                              colloc = KEYPAD;                                                                //read columns
+ 230   2                              colloc &= 0xF0;                                                                 //masku unused bits
+ 231   2                              }
+ 232   1                              while(colloc == 0xF0);                                                  //wait for keypress
+ 233   1      
+ 234   1                              while(1)
+ 235   1                                      {
+ 236   2                                              KEYPAD &= 0xF0;                                                 //masking row bits
+ 237   2                                              KEYPAD |= 0x0E;                                                 //now ground row 0 0E = 00001110b ORing won't affect column data
+ 238   2                                              colloc = KEYPAD;                                                //read columns
+C51 COMPILER V9.01   VARIABLE_FREQUENCY                                                    01/26/2016 16:13:41 PAGE 5   
+
+ 239   2                                              colloc &= 0xF0;                                                 //mask row bits
+ 240   2                                              if(colloc != 0xF0)                                              //column detected
+ 241   2                                                      {
+ 242   3                                                              rowloc = 0;                                             //save row location
+ 243   3                                                              break;
+ 244   3                                                      }
+ 245   2                                              KEYPAD &= 0xF0;
+ 246   2                                              KEYPAD |= 0x0D;                                                 //ground row 1 0D = 00001101b  ORing won't affect column data
+ 247   2                                              colloc = KEYPAD;                                                //read columns
+ 248   2                                              colloc &= 0xF0;                                                 //mask row bits
+ 249   2                                              if(colloc != 0xF0)                                              //column detected
+ 250   2                                                      {
+ 251   3                                                              rowloc = 1;                                             //save row location
+ 252   3                                                              break;
+ 253   3                                                      }
+ 254   2                                              KEYPAD &= 0XF0;
+ 255   2                                              KEYPAD |= 0x0B;                                                 //ground row 2 0B = 00001011b
+ 256   2                                              colloc = KEYPAD;                                                //read columns
+ 257   2                                              colloc &= 0xF0;                                                 //mask row bits
+ 258   2                                              if(colloc != 0xF0)                                              //column detected
+ 259   2                                                      {
+ 260   3                                                              rowloc = 2;                                             //save row location
+ 261   3                                                              break;
+ 262   3                                                      }
+ 263   2                                              KEYPAD &= 0XF0;
+ 264   2                                              KEYPAD |= 0x07;                                         //ground row 3 07 = 00000111b
+ 265   2                                              colloc = KEYPAD;                                        //read columns
+ 266   2                                              colloc &= 0xF0;                                         //mask row bits
+ 267   2                                              if(colloc != 0xF0)                                      //column detected
+ 268   2                                              rowloc = 3;                                                     //save row location
+ 269   2                                              break;
+ 270   2                                      }
+ 271   1                      //check columns and send result to LCD
+ 272   1                      if(colloc == 0xE0)                                                      //0E = 00001110
+ 273   1                              return keypad[rowloc][0];
+ 274   1                      else if(colloc == 0xD0)                                         //0D = 00001101
+ 275   1                              return keypad[rowloc][1];
+ 276   1                      else if(colloc == 0xB0)                                         //0B = 00001011
+ 277   1                              return keypad[rowloc][2];
+ 278   1                      else
+ 279   1                              return keypad[rowloc][3];
+ 280   1                      }
+ 281          
+ 282          void TimerH(unsigned char High, unsigned char Low)
+ 283                  {
+ 284   1               TMOD = 0x01;
+ 285   1               TL0 = Low;
+ 286   1               TH0 = High;
+ 287   1               TR0 = 1;
+ 288   1               while(TF0 == 0);
+ 289   1               TR0 = 0;
+ 290   1               TF0 = 0;        
+ 291   1              }
+ 292          void TimerL(unsigned char High, unsigned char Low)
+ 293                  {
+ 294   1               TMOD = 0x01;
+ 295   1               TL0 = Low;
+ 296   1               TH0 = High;
+ 297   1               TR0 = 1;
+ 298   1               while(TF0 == 0);
+ 299   1               TR0 = 0;
+ 300   1               TF0 = 0;        
+C51 COMPILER V9.01   VARIABLE_FREQUENCY                                                    01/26/2016 16:13:41 PAGE 6   
+
+ 301   1              }        
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   1087    ----
+   CONSTANT SIZE    =     50    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----      73
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

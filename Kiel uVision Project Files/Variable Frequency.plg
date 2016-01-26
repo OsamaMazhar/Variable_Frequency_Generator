@@ -1,0 +1,15 @@
+<html>
+<body>
+<pre>
+<h1>µVision Build Log</h1>
+<h2>Project:</h2>
+C:\Users\Osama\Desktop\Projects_to_Upload\Frequency Generators With Variable Duty ALL\Variable Frequency\Variable Frequency.uvproj
+Project File Date:  01/21/2012
+
+<h2>Output:</h2>
+Build target 'Target 1'
+compiling Variable Frequency.c...
+linking...
+Program Size: data=82.0 xdata=0 code=2400
+creating hex file from "Variable Frequency"...
+"Variable Frequency" - 0 Error(s), 0 Warning(s).
